@@ -13,6 +13,7 @@ import wishlistRouter from "./client/wishlist";
 import blogCategory from "./client/blogCategory";
 import reviewRouter from "./client/review";
 import feedbackRouter from "./client/feedback";
+import couponRouter from "./client/coupon";
 import getIO from "../socket";
 import blogRouter from "../routes/client/blog";
 import commentsRouter from "../routes/client/commentsBlogs";
@@ -59,6 +60,8 @@ router.use("/blogCategory", blogCategory);
 router.use("/feedbacks", feedbackRouter);
 
 router.use("/reviews", reviewRouter);
+
+router.use("/coupons", couponRouter);
 
 router.use("/blog", blogRouter);
 
