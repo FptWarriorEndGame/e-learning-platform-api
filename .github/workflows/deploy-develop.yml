@@ -1,0 +1,41 @@
+on:
+  push:
+    branches:
+      - develop
+
+name: 🚀 Deploy website on dev site
+
+jobs:
+  web-deploy:
+    name: 🎉 Deploy
+    runs-on: ubuntu-latest
+    steps:
+    - name: 🚚 Get latest code
+      uses: actions/checkout@v3
+
+    - name: 🛠 Install Dependencies
+      run: yarn
+
+    - name: testing the app
+      run: yarn test
+
+    - name: 🚀 Build TypeScript
+      run: yarn build
+
+    - name: Copy File Node Version (.node-version)
+      run: yarn copy
+
+    - name: 📂 Sync files
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+      with:
+        server: ftp.trannhatsang.com
+        username: ${{secrets.ftp_username}}
+        password: ${{secrets.ftp_password}}
+        server-dir: /e-learning-api-dev.trannhatsang.com/
+        local-dir: dist/
+    - name: Discord notification
+      env:
+        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      uses: Ilshidur/action-discord@0.3.2
+      with:
+        args: 'The project {{ EVENT_PAYLOAD.repository.full_name }} has been deployed.'
