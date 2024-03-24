@@ -1,8 +1,30 @@
 import { Request, Response, NextFunction } from "express";
 import Lesson from "../../models/Lesson";
+import Section from "../../models/Section";
 import IsLessonDone from "../../models/IsLessonDone";
 import CustomError from "../../utils/error";
 import CustomErrorMessage from "../../utils/errorMessage";
+import mongoose, { ClientSession } from "mongoose";
+import { coreHelper } from "../../utils/coreHelper";
+import ActionLog from "../../models/ActionLog";
+import { enumData } from "../../config/enumData";
+import { UserAuthRequest } from "../../middleware/is-user-auth";
+
+import {
+  CREATE_SUCCESS,
+  ERROR_CREATE_DATA,
+  ERROR_GET_DATA,
+  ERROR_GET_DATA_DETAIL,
+  ERROR_GET_DATA_HISTORIES,
+  ERROR_NOT_FOUND_DATA,
+  ERROR_UPDATE_ACTIVE_DATA,
+  ERROR_UPDATE_DATA,
+  GET_DETAIL_SUCCESS,
+  GET_HISOTIES_SUCCESS,
+  GET_SUCCESS,
+  UPDATE_ACTIVE_SUCCESS,
+  UPDATE_SUCCESS,
+} from "../../config/constant";
 
 export const getLessonsBySectionId = async (req: Request, res: Response, next: NextFunction) => {
   const { sectionId } = req.params;
@@ -113,6 +135,34 @@ export const updateLessonDoneByUser = async (req: Request, res: Response, next: 
       return next(error);
     } else {
       const customError = new CustomErrorMessage("Failed to update lesson done!", 422);
+      return next(customError);
+    }
+  }
+};
+
+export const getFreeLessonsByCourseId = async (req: Request, res: Response, next: NextFunction) => {
+  const { courseId } = req.params;
+
+  try {
+    const sections = await Section.find({ courseId: courseId });
+
+    const sectionIds = sections.map((section) => section._id);
+
+    const freeLessons = await Lesson.find({
+      sectionId: { $in: sectionIds },
+      access: "FREE",
+      isDeleted: false,
+    }).sort({ createdAt: 1 });
+
+    res.status(200).json({
+      message: GET_SUCCESS,
+      lessons: freeLessons,
+    });
+  } catch (error) {
+    if (error instanceof CustomError) {
+      return next(error);
+    } else {
+      const customError = new CustomErrorMessage(ERROR_GET_DATA, 422);
       return next(customError);
     }
   }

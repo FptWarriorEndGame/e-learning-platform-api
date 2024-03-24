@@ -212,9 +212,9 @@ export const adminLogin = async (req: Request, res: Response, next: NextFunction
 
     const { role } = userDoc;
 
-    if (role !== enumData.UserType.Admin.code && role !== enumData.UserType.Author.code) {
+    if (role !== enumData.UserType.Admin.code && role !== enumData.UserType.Author.code && role !== enumData.UserType.Employee.code) {
       const error = new CustomErrorMessage(
-        "Could not authenticate because this account not admin or author role!",
+        "Could not authenticate because this account not admin, employee or author role!",
         422
       );
       throw error;
@@ -250,7 +250,14 @@ export const adminLogin = async (req: Request, res: Response, next: NextFunction
 
     if (userPermission) {
       const listPermissionJSON = JSON.parse(userPermission.listPermission) as TreeNode[][];
-      const list = listPermissionJSON.map((item) => item[0]).map((nodeItem) => nodeItem.children);
+      const list = listPermissionJSON.map((item: any) => {
+          // CHECK IF BIG MODULE IS CHECKED
+          if (item[0].parentChecked) {
+            listKeyPermission.push(item[0].code)
+          }
+
+        return item[0] 
+      }).map((nodeItem) => nodeItem.children);
       const listPermissionObj = list.flat().flatMap((item) => item.children);
 
       listPermissionObj.forEach((permissionObj) => {

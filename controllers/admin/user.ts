@@ -93,6 +93,7 @@ export const getUsers = async (req: AuthorAuthRequest, res: Response, next: Next
       const currentUserId = user._id.toString();
       const listCoursesRes = [];
       const listCourse = dictCoursesOfUser[currentUserId];
+      // Trường hợp đã có order
       if (listCourse) {
         const listCourseId = listCourse.map((item) => item.courseId.toString());
         const listCourseIdDistinct = [...new Set<string>(listCourseId)];
@@ -120,6 +121,27 @@ export const getUsers = async (req: AuthorAuthRequest, res: Response, next: Next
           status: user.status,
         };
         result.push(item);
+      }else {
+        // Trường hợp chưa có order (khoá học mới!)
+        const item = {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          avatar: user.avatar,
+          role: user.role,
+          phone: user.phone,
+          address: user.address,
+          payment: user.payment,
+          courses: [],
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          lastLogin: user.lastLogin,
+          isDeleted: user.isDeleted,
+          statusName: enumData.UserStatus[user.status]?.name,
+          statusColor: enumData.UserStatus[user.status]?.color,
+          status: user.status,
+        };
+        result.push(item);
       }
     });
 
@@ -138,8 +160,14 @@ export const getUsers = async (req: AuthorAuthRequest, res: Response, next: Next
 };
 
 export const getUsersSelectBox = async (req: Request, res: Response, next: NextFunction) => {
+
+  const userQuery: any = {}
+  if(req.query.role) {
+    userQuery.role = req.query.role
+  }
+
   try {
-    const users = await User.find({}).select("_id name");
+    const users = await User.find(userQuery).select("_id name");
 
     const result = users.map((user) => {
       return {
@@ -183,7 +211,7 @@ export const getUser = async (req: Request, res: Response, next: NextFunction) =
 };
 
 export const postUser = async (req: AuthorAuthRequest, res: Response, next: NextFunction) => {
-  const { name, email, phone, password, role } = req.body;
+  const { name, email, phone, password, role, status, username } = req.body;
 
   let avatar;
 
@@ -219,7 +247,8 @@ export const postUser = async (req: AuthorAuthRequest, res: Response, next: Next
       role,
       password: hashedPassword,
       createdBy: req.userId,
-      status: enumData.UserStatus.NEW.code,
+      status: status ? status : enumData.UserStatus.NEW.code,
+      username: username
     });
 
     const result = await newUser.save();

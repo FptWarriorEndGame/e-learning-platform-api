@@ -14,4 +14,6 @@ router.post("/lesson/done/:lessonId", lessonController.updateLessonDoneByUser);
 
 router.get("/getAllLesson", lessonController.getAllLessons);
 
+router.get("/course/:courseId/free-lessons", lessonController.getFreeLessonsByCourseId);
+
 export default router;
