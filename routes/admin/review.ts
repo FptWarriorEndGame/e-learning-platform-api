@@ -4,9 +4,9 @@ import isAuth from "../../middleware/is-auth";
 
 const router = Router();
 
-router.get("/", reviewController.getReviews);
+router.get("/", isAuth, reviewController.getReviews);
 
-router.get("/review/:reviewId", reviewController.getReviewById);
+router.get("/review/:reviewId",isAuth, reviewController.getReviewById);
 
 router.get("/review/histories/:reviewId", isAuth, reviewController.loadHistoriesForReview);
 

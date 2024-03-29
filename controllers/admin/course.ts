@@ -179,16 +179,24 @@ export const postCourse = async (req: AuthorAuthRequest, res: Response, next: Ne
     description,
     level,
     categoryId,
-    userId,
     courseSlug,
     willLearns,
     subTitle,
+    views,
+    tags,
+    requirements,
   } = req.body;
-  // Create transaction to make sure data intergrity
+
   let session: ClientSession | null = null;
+
+  session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    session = await mongoose.startSession();
-    session.startTransaction();
+    if (price < 0 || finalPrice < 0 || views < 0) {
+      const customError = new CustomErrorMessage(ERROR_CREATE_DATA, 400);
+      return next(customError);
+    }
 
     const courseCode = await coreHelper.getCodeDefault("COURSE", Course);
 
@@ -201,37 +209,34 @@ export const postCourse = async (req: AuthorAuthRequest, res: Response, next: Ne
       finalPrice,
       description,
       level,
+      userId: req.userId,
       courseSlug,
       categoryId,
-      userId,
       willLearns,
       subTitle,
+      tags,
+      views,
+      requirements,
       createdBy: req.userId,
     });
 
-    const courseRes = await course.save({
-      session: session,
-    });
+    const courseRes = await course.save();
 
     const historyItem = new ActionLog({
       courseId: courseRes._id,
       type: enumData.ActionLogEnType.Create.code,
-      createdBy: new mongoose.Types.ObjectId((req as any).userId) as any,
+      createdBy: new mongoose.Types.ObjectId(req.userId),
       functionType: "COURSE",
-      description: `User [${(req as any).username}] has [${
-        enumData.ActionLogEnType.Create.name
-      }] Course`,
+      description: `User [${req.username}] has [${enumData.ActionLogEnType.Create.name}] Course`,
     });
 
-    await historyItem.save({
-      session: session,
-    });
+    await ActionLog.collection.insertOne(historyItem.toObject(), { session });
 
     await session.commitTransaction();
     session.endSession();
+
     res.json({
-      message: "Create course successfully!",
-      course: courseRes,
+      message: CREATE_SUCCESS,
     });
   } catch (error) {
     if (session) {
@@ -242,15 +247,14 @@ export const postCourse = async (req: AuthorAuthRequest, res: Response, next: Ne
     if (error instanceof CustomError) {
       return next(error);
     } else {
-      const customError = new CustomErrorMessage("Failed to create courses!", 422);
+      const customError = new CustomErrorMessage(ERROR_CREATE_DATA, 422);
       return next(customError);
     }
   }
 };
 
-export const udpateCourse = async (req: AuthorAuthRequest, res: Response, next: NextFunction) => {
+export const updateCourse = async (req: AuthorAuthRequest, res: Response, next: NextFunction) => {
   const {
-    id,
     name,
     thumbnail,
     access,
@@ -259,21 +263,32 @@ export const udpateCourse = async (req: AuthorAuthRequest, res: Response, next: 
     description,
     level,
     categoryId,
-    userId,
     courseSlug,
     willLearns,
     subTitle,
+    views,
+    tags,
+    requirements,
+    _id,
   } = req.body;
-  // Create transaction to make sure data intergrity
   let session: ClientSession | null = null;
+
+  session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    session = await mongoose.startSession();
-    session.startTransaction();
-    const foundCourse = await Course.findById(id);
+    if (price < 0 || finalPrice < 0 || views < 0) {
+      const customError = new CustomErrorMessage(ERROR_UPDATE_DATA, 400);
+      return next(customError);
+    }
+
+    const foundCourse = await Course.findById(_id);
+
     if (!foundCourse) {
-      const error = new CustomError("Course", "Course not found", 404);
+      const error = new CustomError("Course", ERROR_NOT_FOUND_DATA, 404);
       throw error;
     }
+
     foundCourse.name = name;
     foundCourse.thumbnail = thumbnail;
     foundCourse.access = access;
@@ -282,38 +297,32 @@ export const udpateCourse = async (req: AuthorAuthRequest, res: Response, next: 
     foundCourse.description = description;
     foundCourse.level = level;
     foundCourse.categoryId = categoryId;
-    foundCourse.userId = userId;
     foundCourse.courseSlug = courseSlug;
     foundCourse.willLearns = willLearns;
     foundCourse.subTitle = subTitle;
+    foundCourse.views = views;
+    foundCourse.tags = tags;
+    foundCourse.requirements = requirements;
+    foundCourse.updatedAt = new Date();
+    foundCourse.updatedBy = new mongoose.Types.ObjectId(req.userId) as any;
 
-    const courseRes = await foundCourse.save({
-      session: session,
-    });
-    const courseId = courseRes._id;
-    const type = enumData.ActionLogEnType.Update.code;
-    const createdBy = new mongoose.Types.ObjectId(req.userId) as any;
-    const historyDesc = ` User [${(req as any).username}] has [${
-      enumData.ActionLogEnType.Update.name
-    }] Course`;
-    const functionType = "COURSE";
+    const courseRes = await foundCourse.save();
+
     const historyItem = new ActionLog({
-      courseId,
-      type,
-      createdBy,
-      functionType,
-      description: historyDesc,
+      courseId: courseRes._id,
+      type: enumData.ActionLogEnType.Update.code,
+      createdBy: new mongoose.Types.ObjectId(req.userId) as any,
+      functionType: "COURSE",
+      description: `User [${req.username}] has [${enumData.ActionLogEnType.Update.name}] Course`,
     });
 
-    await historyItem.save({
-      session: session,
-    });
+    await ActionLog.collection.insertOne(historyItem.toObject(), { session });
 
     await session.commitTransaction();
     session.endSession();
+
     res.json({
-      message: "Update course successfully!",
-      course: courseRes,
+      message: UPDATE_SUCCESS,
     });
   } catch (error) {
     if (session) {
@@ -324,7 +333,7 @@ export const udpateCourse = async (req: AuthorAuthRequest, res: Response, next: 
     if (error instanceof CustomError) {
       return next(error);
     } else {
-      const customError = new CustomErrorMessage("Failed to update courses!", 422);
+      const customError = new CustomErrorMessage(ERROR_UPDATE_DATA, 422);
       return next(customError);
     }
   }
@@ -400,24 +409,32 @@ export const updateActiveStatusCourse = async (
   }
 };
 
-export const loadHistories = async (req: Request, res: Response, next: NextFunction) => {
+export const loadHistoriesForCourse = async (req: Request, res: Response, next: NextFunction) => {
   const { courseId } = req.params;
 
   try {
+    const page = parseInt(req.query._page as string) || 1;
+    const limit = parseInt(req.query._limit as string) || 10;
+    const skip = (page - 1) * limit;
+
     const [results, count] = await Promise.all([
-      ActionLog.find({ courseId: courseId }).sort({ createdAt: -1 }),
+      ActionLog.find({ courseId: courseId }).sort({ createdAt: -1 }).skip(skip).limit(limit),
       ActionLog.countDocuments({ courseId: courseId }),
     ]);
+
     res.status(200).json({
-      message: "Fetch list histories successfully!",
-      results,
+      message: GET_HISOTIES_SUCCESS,
+      results: results,
       count,
+      page,
+      pages: Math.ceil(count / limit),
+      limit,
     });
   } catch (error) {
     if (error instanceof CustomError) {
       return next(error);
     } else {
-      const customError = new CustomErrorMessage("Failed to fetch question by id!", 422);
+      const customError = new CustomErrorMessage(ERROR_GET_DATA_HISTORIES, 422);
       return next(customError);
     }
   }

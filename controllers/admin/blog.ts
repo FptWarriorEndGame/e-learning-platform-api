@@ -26,20 +26,25 @@ export const getBlogPrams = async (req: AuthorAuthRequest, res: Response, next: 
     const page = parseInt(req.query._page as string) || 1;
     const limit = parseInt(req.query._limit as string) || 10;
     const skip = (page - 1) * limit;
-
     const statusFilter = (req.query._status as string) || "all";
-    
+    const categoryId = req.query.categoryId as string;
+    const searchAuthor = (req.query.author as string) || "";
+    const tags = req.query.tags as string;
+
     let query: any = {
       ...(statusFilter === "active" ? { isDeleted: false } : {}),
       ...(statusFilter === "inactive" ? { isDeleted: true } : {}),
       ...(searchTerm ? { name: { $regex: searchTerm, $options: "i" } } : {}),
+      ...(categoryId ? { categoryId: new mongoose.Types.ObjectId(categoryId) } : {}),
+      ...(searchAuthor ? { author: searchAuthor } : {}),
+      ...(tags ? { tags: tags } : {}),
     };
-    const currentUserRole = req.role;
-    if(currentUserRole && currentUserRole === enumData.UserType.Author.code) {
-      query.createdBy = new mongoose.Types.ObjectId(req.userId) as any;
-   }
-    const total = await Blog.countDocuments(query);
 
+    const currentUserRole = req.role;
+    if (currentUserRole && currentUserRole === enumData.UserType.Author.code) {
+      query.createdBy = new mongoose.Types.ObjectId(req.userId) as any;
+    }
+    const total = await Blog.countDocuments(query);
     const blogs = await Blog.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit);
 
     res.status(200).json({

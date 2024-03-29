@@ -19,7 +19,7 @@ export interface ICourse extends IBaseSchema {
   requirements?: string[];
   willLearns?: string[];
   tags?: string[];
-  createdBy: any
+  createdBy: any;
 }
 
 export interface ICourseDetail {
@@ -40,6 +40,11 @@ export interface ICourseDetail {
     name: string;
     avatar: string;
   };
+  authorId?: {
+    _id: string;
+    name: string;
+    avatar: string;
+  };
   courseSlug: string;
   level: string;
   sections: number;
@@ -48,6 +53,12 @@ export interface ICourseDetail {
   totalVideosLength: number;
   numOfReviews: number;
   avgRatingStars: number;
+  willLearns?: string[];
   createdAt: Date;
   updatedAt: Date;
+  createdBy?: {
+    _id?: string;
+    name?: string;
+    avatar?: string;
+  }
 }

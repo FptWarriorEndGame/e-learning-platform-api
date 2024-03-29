@@ -5,15 +5,33 @@ import Note from "../../models/Note";
 import { coreHelper } from "../../utils/coreHelper";
 import { enumData } from "../../config/enumData";
 import ActionLog from "../../models/ActionLog";
+import Course from "../../models/Course";
 
 // Get all note
 export const getAllNote = async (req: AuthorAuthRequest, res: Response) => {
+  
   try {
+    let listCourseIdOfCurrentAuthor = [];
+    if(req.userId && req.role === enumData.UserType.Author.code){
+      const listCourseOfCurrentAuthor = await Course.find({
+        createdBy: req.userId
+      })
+      listCourseIdOfCurrentAuthor = listCourseOfCurrentAuthor.map((course) => course._id);
+    }
+
     const notes = await Note.find()
       .populate("userId", "name avatar")
       .populate("lessonId", "name")
-      .populate("courseId", "name");
-    res.status(200).json({ notes });
+      .populate("courseId", "_id name");
+
+    const notesRes = notes.filter((note: any) => {
+      if (listCourseIdOfCurrentAuthor.length > 0) {
+        return listCourseIdOfCurrentAuthor.includes(note?.courseId?._id?.toString());
+      }
+      return true;
+    })
+
+    res.status(200).json({ notes: notesRes });
   } catch (error: unknown) {
     res.status(500).json({ error: (error as Error).message });
   }

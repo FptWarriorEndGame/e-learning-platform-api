@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import CourseDiscuss from "../../models/CourseDisscuss";
 import { coreHelper } from "../../utils/coreHelper";
 
-export const getAllDiscurdCourse = async (req: Request, res: Response) => {
+export const getAllDiscussCourse = async (req: Request, res: Response) => {
   try {
     const discuss = await CourseDiscuss.find()
       .populate("userId", "name")

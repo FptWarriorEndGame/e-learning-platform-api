@@ -45,13 +45,25 @@ export const getFeedbacks = async (req: AuthorAuthRequest, res: Response, next: 
 
     const feedbacks = await Feedback.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit);
 
+    const feedbacksWithReplies = await Promise.all(
+      feedbacks.map(async (feedback) => {
+        const replyCount = await FeedbackReply.countDocuments({ feedbackId: feedback._id });
+        const hasReplies = replyCount > 0;
+        return {
+          ...feedback.toObject(),
+          hasReplies,
+          replyCount,
+        };
+      })
+    );
+
     res.status(200).json({
       message: GET_SUCCESS,
       total,
       page,
       pages: Math.ceil(total / limit),
       limit,
-      feedbacks,
+      feedbacks: feedbacksWithReplies,
     });
   } catch (error) {
     if (error instanceof CustomError) {

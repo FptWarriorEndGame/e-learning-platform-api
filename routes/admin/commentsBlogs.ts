@@ -22,7 +22,7 @@ router.patch("/like", isAuth, blogCommentsController.toggleLikeComment);
 // Route để phản hồi bình luận
 router.post("/reply", isAuth, blogCommentsController.addReplyToComment);
 
-// Route để lấy tất cả danh mục
+// Route để lấy tất cả blog comments
 router.get("/getAll", blogCommentsController.getAllBlogComments);
 
 // Route để lấy tất cả bình luận của một bài viết (admin)
@@ -34,7 +34,7 @@ router.patch(
   blogCommentsController.updateActiveCategoryBlogStatus
 );
 
-// Route để lấy lịch sử của một danh mục
+// Route để lấy lịch sử của một blog comments
 router.get("/histories/:commentId", isAuth, blogCommentsController.loadHistoriesForCategoryBlog);
 
 export default router;

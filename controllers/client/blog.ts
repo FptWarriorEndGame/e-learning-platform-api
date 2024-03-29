@@ -8,16 +8,21 @@ export const getAllBlog = async (req: Request, res: Response, next: NextFunction
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 10;
   const skip = (page - 1) * limit;
-  const author = req.query.author as string; // Sử dụng tên trường 'author' nếu là một trường trong schema
-  const categoryId = req.query.categoryId as string; // Đổi _category thành categoryId
+  const author = req.query.author as string;
+  const categoryId = req.query.categoryId as string;
+  const title = req.query.title as string;
 
   try {
     const blogs = await Blog.find({
       ...(author ? { author: author } : {}),
       ...(categoryId ? { categoryId: categoryId } : {}),
-      isDeleted: { $ne: true }, // Thêm điều kiện để loại trừ các blog đã bị xóa mềm
+      ...(author ? { author: { $regex: author, $options: "i" } } : {}),
+      ...(title ? { title: { $regex: title, $options: "i" } } : {}),
+      isDeleted: { $ne: true },
     })
+      .populate("categoryId", "name")
       .skip(skip)
+      .sort({ createdAt: -1 })
       .limit(limit);
     const total = await Blog.countDocuments({
       ...(author ? { author: author } : {}),

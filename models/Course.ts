@@ -7,7 +7,7 @@ const courseSchema = new Schema<ICourse>(
     code: {
       type: String,
     },
-    name: {
+    name: { 
       type: String,
       required: true,
       index: true,

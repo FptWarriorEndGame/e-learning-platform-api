@@ -19,6 +19,7 @@ import testRouter from "./admin/test";
 import notesRouter from "./admin/noteCourse";
 import commentsRouter from "./admin/commentsBlogs";
 import discussRouter from "./admin/discussCourse";
+import subscribe from "./admin/subscribe";
 
 const router = Router();
 
@@ -63,5 +64,7 @@ router.use("/comments", commentsRouter);
 router.use("/discuss", discussRouter);
 
 router.use("/tests", testRouter);
+
+router.use("/subscribe", subscribe);
 
 export default router;

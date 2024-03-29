@@ -321,7 +321,7 @@ export const getNewUserSignupsList = async (req: Request, res: Response, next: N
   }
 };
 
-export const getReportsUserProgress = async (req: Request, res: Response, next: NextFunction) => {
+export const getReportsUserProgress = async (req: AuthorAuthRequest, res: Response, next: NextFunction) => {
   const dateStart = req.query.dateStart as string; // Replace with your start date
   const dateEnd = req.query.dateEnd as string;   // Replace with your end date
   const authorId = req.query.authorId as string;
@@ -334,6 +334,11 @@ export const getReportsUserProgress = async (req: Request, res: Response, next: 
     };
     const reviewQuery: any = {};
     const wishlistQuery: any = {};
+    if(req.userId) {
+      // Chỉ list ra những User của tác giả hiện tại - Nếu đăng nhập bằng tài khoản tác giả!
+      
+    }
+
     if(dateStart && dateEnd) {
       orderQuery.createdAt = {
         $gte: moment(dateStart, 'DD/MM/YYYY').toDate(), 
@@ -355,10 +360,6 @@ export const getReportsUserProgress = async (req: Request, res: Response, next: 
     
     }
 
-    if(authorId) {
-     
-    }
-
     // TODO: SHOULD SEARCH FOR USER HAVE ROLE (USER - STUDENT!)
     const users = await User.find({
       role: enumData.UserType.User.code, // TODO LATER!
@@ -370,6 +371,7 @@ export const getReportsUserProgress = async (req: Request, res: Response, next: 
 
     const dictCoursesOfUser: Record<string, any> = {}
     const dictUsersOfAuthor: Record<string, any> = {}
+    const dictCoursesOfAuthor: Record<string, any> = {}
     const dictCourse: Record<string, any> = {}
     const dictOrdersOfUser: Record<string, any> = {}
     const dictLessonsDoneOfUser: Record<string, any> = {}
@@ -460,11 +462,19 @@ export const getReportsUserProgress = async (req: Request, res: Response, next: 
           dictCoursesOfUser[item.userId] = [item]
         }
         const currentAuthorId = dictCourse[item.courseId.toString()]?.createdBy?._id?.toString();
+        
         if(currentAuthorId) {
           if(dictUsersOfAuthor[currentAuthorId]) {
             dictUsersOfAuthor[currentAuthorId].push(item.userId.toString())
           }else {
             dictUsersOfAuthor[currentAuthorId] = [item.userId.toString()]
+          }
+
+          if(dictCoursesOfAuthor[currentAuthorId]) {
+            dictCoursesOfAuthor[currentAuthorId].push(item.courseId.toString())
+          }else {
+            dictCoursesOfAuthor[currentAuthorId] = [item.courseId.toString()]
+
           }
         }
         // create dict for author
@@ -484,10 +494,19 @@ export const getReportsUserProgress = async (req: Request, res: Response, next: 
     })
 
     let resUser = users;
+    let listCourseIdOfCurrentAuthor = []
+    if(req.userId && enumData.UserType.Author.code) {
+      // Danh sách userId của tác giả 
+      const listUserIdOfCurrentAuthor = dictUsersOfAuthor[req.userId]
+      resUser = users.filter((item) => listUserIdOfCurrentAuthor.includes(item._id.toString()))
+
+     listCourseIdOfCurrentAuthor = dictCoursesOfAuthor[req.userId]
+    }
     if(authorId) {
       const listUserIdOfCurrentAuthor = dictUsersOfAuthor[authorId]
       resUser = users.filter((item) => listUserIdOfCurrentAuthor.includes(item._id.toString()))
     }
+    
 
     for (const user of resUser) {
       // current key
@@ -501,7 +520,11 @@ export const getReportsUserProgress = async (req: Request, res: Response, next: 
       const completedCourses = [];
 
       // List courses
-      const listCourseOfCurrentUser = dictCoursesOfUser[currentUserId] ?? [];
+      let listCourseOfCurrentUser = dictCoursesOfUser[currentUserId] ?? [];
+      if(listCourseIdOfCurrentAuthor.length > 0) {
+        listCourseOfCurrentUser = listCourseOfCurrentUser.filter((item) => listCourseIdOfCurrentAuthor.includes(item.courseId.toString()))
+      }
+
       for (const course of listCourseOfCurrentUser) {
         // const listSectionOfCurrentCourse = dictSectionOfCourse[course?.courseId.toString()] ?? [];
         
@@ -564,7 +587,7 @@ export const getReportsUserProgress = async (req: Request, res: Response, next: 
   }
 };
 
-export const getReportsCourseInsights = async (req: Request, res: Response, next: NextFunction) => {
+export const getReportsCourseInsights = async (req: AuthorAuthRequest, res: Response, next: NextFunction) => {
 
   const dateStart = req.query.dateStart as string; // Replace with your start date
   const dateEnd = req.query.dateEnd as string;   // Replace with your end date
@@ -593,6 +616,10 @@ export const getReportsCourseInsights = async (req: Request, res: Response, next
         $gte: moment(dateStart, 'DD/MM/YYYY').toDate(), 
         $lte: moment(dateEnd, 'DD/MM/YYYY').toDate()
     }
+    }
+
+    if(req.userId && req.role === enumData.UserType.Author.code) {
+      courseQuery.createdBy = req.userId
     }
 
     if(authorId) {

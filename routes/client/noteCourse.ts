@@ -12,7 +12,7 @@ import {
 const router = express.Router();
 
 // Get all notes
-router.get("/", getAllNote);
+router.get("/getAll", getAllNote);
 
 router.get("/:id", getNoteByUserId);
 

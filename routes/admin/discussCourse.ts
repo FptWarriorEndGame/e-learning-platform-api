@@ -7,7 +7,7 @@ const router = express.Router();
 router.get("/getdisscuss", isAuth, discussCourseController.getDiscuss);
 
 // Route to get all discussions
-router.get("/getAll", isAuth, discussCourseController.getAllDiscurdCourse);
+router.get("/getAll", isAuth, discussCourseController.getAllDiscussCourse);
 
 // Route to get discussions by lessonId
 router.get("/lesson/:lessonId", isAuth, discussCourseController.getDiscussByLessonId);

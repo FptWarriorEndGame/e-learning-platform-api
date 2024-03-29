@@ -102,7 +102,6 @@ export const getLessonsBySectionIdEnrolledCourse = async (
 
 export const updateLessonDoneByUser = async (req: Request, res: Response, next: NextFunction) => {
   const { lessonId } = req.params;
-
   const { userId } = req.body;
 
   try {
@@ -163,6 +162,30 @@ export const getFreeLessonsByCourseId = async (req: Request, res: Response, next
       return next(error);
     } else {
       const customError = new CustomErrorMessage(ERROR_GET_DATA, 422);
+      return next(customError);
+    }
+  }
+};
+
+export const getUsersByLessonId = async (req: Request, res: Response, next: NextFunction) => {
+  const { lessonId } = req.params;
+
+  try {
+    const lessonDoneEntries = await IsLessonDone.find({ lessonId: lessonId }).populate(
+      "userId",
+      "name avatar"
+    );
+    const userIds = lessonDoneEntries.map((entry) => entry.userId);
+
+    res.status(200).json({
+      message: "Fetch all users who have done the lesson successfully!",
+      users: userIds,
+    });
+  } catch (error) {
+    if (error instanceof CustomError) {
+      return next(error);
+    } else {
+      const customError = new CustomErrorMessage("Failed to fetch users by lesson id!", 422);
       return next(customError);
     }
   }

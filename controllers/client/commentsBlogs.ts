@@ -1,10 +1,11 @@
 import { Request, Response } from "express";
 import BlogComment from "../../models/BlogComment"; // Giả sử đường dẫn đến model BlogComment
+import { coreHelper } from "../../utils/coreHelper";
 
 export const getAllCommentsFromMultipleBlogs = async (req: Request, res: Response) => {
   try {
     const comments = await BlogComment.find()
-      .populate("userId", "name")
+      .populate("userId", "name avatar")
       .populate({
         path: "replies",
         populate: { path: "userId", select: "name avatar" },
@@ -20,8 +21,10 @@ export const getAllCommentsFromMultipleBlogs = async (req: Request, res: Respons
 export const addComment = async (req: Request, res: Response) => {
   try {
     const { content, userId, blogId, parentCommentId } = req.body;
+    const blogCommentsCode = await coreHelper.getCodeDefault("BLOGCOMMENT", BlogComment);
 
     const newComment = new BlogComment({
+      code: blogCommentsCode,
       content,
       userId,
       blogId,
@@ -41,7 +44,7 @@ export const getCommentsByBlogId = async (req: Request, res: Response) => {
   try {
     const { blogId } = req.params;
     const comments = await BlogComment.find({ blogId, parentCommentId: null }) // Fetch only parent comments
-      .populate("userId", "name")
+      .populate("userId", "name avatar")
       .populate({
         path: "replies",
         populate: { path: "userId", select: "name avatar" },
@@ -124,12 +127,15 @@ export const addReplyToComment = async (req: Request, res: Response) => {
   try {
     // Find the parent comment and ensure it exists
     const parentComment = await BlogComment.findById(parentCommentId);
+    const blogCommentsCode = await coreHelper.getCodeDefault("BLOG_REPLY", BlogComment);
+
     if (!parentComment) {
       return res.status(404).json({ error: "Parent comment not found." });
     }
 
     // Create a new comment as a reply
     const newReply = new BlogComment({
+      code: blogCommentsCode, 
       content,
       userId,
       blogId,

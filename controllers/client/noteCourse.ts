@@ -106,9 +106,6 @@ export const getNotesByLessonId = async (req: Request, res: Response) => {
   const { lessonId } = req.params;
   try {
     const notes = await Note.find({ lessonId: lessonId });
-    if (notes.length === 0) {
-      return res.status(404).json({ message: "No notes found for this lesson" });
-    }
     res.status(200).json({ notes });
   } catch (error: unknown) {
     res.status(500).json({ error: (error as Error).message });

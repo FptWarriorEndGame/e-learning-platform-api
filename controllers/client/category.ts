@@ -21,6 +21,30 @@ export const getCategories = async (req: Request, res: Response, next: NextFunct
   }
 };
 
+export const getCategoriesSelect = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const categories = await Category.find({
+      isDeleted: false
+    });
+
+      const resSelect = categories.map((item) => {
+        return {
+          label: item.name,
+          value: item._id.toString()
+        }
+      })
+
+    res.status(200).json(resSelect);
+  } catch (error) {
+    if (error instanceof CustomError) {
+      return next(error);
+    } else {
+      const customError = new CustomErrorMessage("Failed to fetch categories!", 422);
+      return next(customError);
+    }
+  }
+};
+
 export const getCategory = async (req: Request, res: Response, next: NextFunction) => {
   const { categoryId } = req.params;
   try {

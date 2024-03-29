@@ -61,28 +61,29 @@ export const retrieveCartByIds = async (req: Request, res: Response, next: NextF
 
     const courses = await Course.find({
       _id: { $in: courseIdsArray },
-    }).select("_id name finalPrice thumbnail userId level");
+    }).select("_id name finalPrice thumbnail userId level createdBy").populate("createdBy", "_id name avatar");
 
     const totalPrice = courses.reduce((acc, course) => acc + course.finalPrice, 0);
 
     const result = [];
-
+    // TODO FIX LATER!
     for (const course of courses) {
       const courseDetailInfo = await getCourseDetailInfo(course._id);
-
-      const cartItem = {
-        _id: courseDetailInfo._id,
-        name: courseDetailInfo.name,
-        thumbnail: courseDetailInfo.thumbnail,
-        finalPrice: courseDetailInfo.finalPrice,
-        level: courseDetailInfo.level,
-        userId: courseDetailInfo.userId,
-        numOfReviews: courseDetailInfo.numOfReviews,
-        totalVideosLength: courseDetailInfo.totalVideosLength,
-        avgRatingStars: courseDetailInfo.avgRatingStars,
-        lessons: courseDetailInfo.lessons,
-      };
-      result.push(cartItem);
+        const cartItem = {
+          _id: courseDetailInfo._id,
+          name: courseDetailInfo.name,
+          thumbnail: courseDetailInfo.thumbnail,
+          finalPrice: courseDetailInfo.finalPrice,
+          level: courseDetailInfo.level,
+          userId: courseDetailInfo.userId,
+          authorId: courseDetailInfo.authorId,
+          numOfReviews: courseDetailInfo.numOfReviews,
+          totalVideosLength: courseDetailInfo.totalVideosLength,
+          avgRatingStars: courseDetailInfo.avgRatingStars,
+          lessons: courseDetailInfo.lessons,
+        };
+        result.push(cartItem);
+    
     }
 
     res.status(200).json({

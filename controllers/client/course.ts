@@ -13,6 +13,7 @@ import { IOrder } from "../../types/order.type";
 import { getCoursesOrderedByUserInfo } from "../../utils/helper";
 import CustomError from "../../utils/error";
 import CustomErrorMessage from "../../utils/errorMessage";
+import Review from "../../models/Review";
 
 interface QueryParameters {
   _q?: string;
@@ -121,6 +122,9 @@ export const getCourses = async (req: Request, res: Response, next: NextFunction
   // Create dict
   const dictCoursesOfUser: Record<string, any> = {};
   const dictCourse: Record<string, any> = {};
+  const dictReviewsOfCourse: Record<string, any> = {};
+  const dictUsersOfCourse: Record<string, any> = {};
+
   try {
     const query = buildQuery(req);
 
@@ -132,11 +136,12 @@ export const getCourses = async (req: Request, res: Response, next: NextFunction
       .skip(skip)
       .limit(limit);
 
+    // Nếu có sắp xếp khoá học!
     if (_sort) {
       let sortQuery: SortQuery = {
         ...(query.$text && { score: { $meta: "textScore" } }),
       };
-
+      // Sắp xếp theo khoá học mới nhất
       if (_sort === "newest") {
         sortQuery.createdAt = -1;
       }
@@ -144,13 +149,15 @@ export const getCourses = async (req: Request, res: Response, next: NextFunction
       coursesQuery.sort(sortQuery);
     }
     const ordersRes = await Order.find();
+    const reviewsRes = await Review.find();
+
     const orderDetails = ordersRes.flatMap((order) => {
       return order.items.map((item: any) => ({
-        orderId: order._id, 
+        orderId: order._id,
         userId: order.user._id,
         userEmail: order.user.email,
         // ... other relevant order fields if needed
-    
+
         courseId: item._id,
         courseName: item.name,
         courseThumbnail: item.thumbnail,
@@ -158,39 +165,93 @@ export const getCourses = async (req: Request, res: Response, next: NextFunction
         reviewed: item.reviewed,
       }));
     });
-   // create dict courses of user
-   orderDetails.forEach((item) => {
-    if (item.userId) {
-      if (dictCoursesOfUser[item.userId]) {
-        dictCoursesOfUser[item.userId].push(item)
-      } else {
-        dictCoursesOfUser[item.userId] = [item]
+    // create dict courses of user
+    orderDetails.forEach((item) => {
+      if (item.userId) {
+        if (dictCoursesOfUser[item.userId]) {
+          dictCoursesOfUser[item.userId].push(item);
+        } else {
+          dictCoursesOfUser[item.userId] = [item];
+        }
       }
-    }
-  })
 
-    const totalCourses = await Course.where(query).countDocuments();
+      if (item.courseId) {
+        if (dictUsersOfCourse[item.courseId]) {
+          dictUsersOfCourse[item.courseId].push(item);
+        } else {
+          dictUsersOfCourse[item.courseId] = [item];
+        }
+      }
+    });
+
+    reviewsRes.forEach((reviewItem) => {
+      if (reviewItem.courseId) {
+        const currentKey = reviewItem.courseId.toString();
+        if (dictReviewsOfCourse[currentKey]) {
+          dictReviewsOfCourse[currentKey].push(reviewItem);
+        } else {
+          dictReviewsOfCourse[currentKey] = [reviewItem];
+        }
+      }
+    });
+
+    let totalCourses = await Course.where(query).countDocuments();
     const courses: ICourse[] = await coursesQuery;
 
     let courseIdOfUserList: string[] = [];
     if (typeof userId === "string" && userId.trim() !== "") {
-      const listCourseOfUser  = dictCoursesOfUser[userId]
-      const listCourseIfOfUser = listCourseOfUser.map((course: any) => course.courseId.toString())
-      courseIdOfUserList = [... new Set<string>(listCourseIfOfUser)];
+      const listCourseOfUser = dictCoursesOfUser[userId] ?? [];
+      let listCourseIfOfUser = [];
+      if (listCourseIfOfUser.length > 0) {
+        listCourseIfOfUser = listCourseOfUser.map((course: any) => course.courseId.toString());
+      }
+      if (listCourseOfUser.length > 0) {
+        courseIdOfUserList = [...new Set<string>(listCourseIfOfUser)];
+      } else {
+        courseIdOfUserList = [];
+      }
     }
 
     let result: Array<ICourse & { isBought: boolean }> = [];
-
+    // FIX BUG HERE LATER!
     for (const course of courses) {
       const currentCourseId = course._id.toString();
+      const listReviewsOfCurrentCourse = dictReviewsOfCourse[currentCourseId] ?? [];
+      const listUsersOfCurrentCourse = dictUsersOfCourse[currentCourseId] ?? [];
+
+      let avgRatings = 0;
+      if (listReviewsOfCurrentCourse.length > 0) {
+        avgRatings =
+          listReviewsOfCurrentCourse.reduce(
+            (total, review) => total + (review?.ratingStar || 0),
+            0
+          ) / listReviewsOfCurrentCourse.length;
+      }
+
       const courseItem = {
         ...course.toObject(),
+        avgRatings: avgRatings,
+        numberUsersOfCourse: listUsersOfCurrentCourse.length,
         isBought:
           typeof userId === "string" && userId.trim() !== ""
             ? courseIdOfUserList.includes(currentCourseId)
             : false,
       };
+
       result.push(courseItem);
+    }
+    // Sắp xếp theo lượt đánh giá khoá học (Mặc định)
+    if (!_sort || _sort === "mostReviews") {
+      result.sort((a: any, b: any) => {
+        return b.avgRatings - a.avgRatings;
+      });
+    }
+
+    // Lọc khoá học theo lượt đánh giá
+    if(req.query._avgRatings && parseInt(req.query._avgRatings as string) >= 3) {
+      const _avgRatings = parseInt(req.query._avgRatings as string);
+      result = result.filter((item: any) => item.avgRatings >= _avgRatings);
+      totalCourses = result.length
     }
 
     res.status(200).json({
@@ -201,7 +262,7 @@ export const getCourses = async (req: Request, res: Response, next: NextFunction
         _limit: limit,
         _totalRows: totalCourses,
       },
-      test: "production changes"
+      test: "production changes",
     });
   } catch (error) {
     if (error instanceof CustomError) {
@@ -213,6 +274,7 @@ export const getCourses = async (req: Request, res: Response, next: NextFunction
   }
 };
 
+// WRITE API AGAIN!
 export const getPopularCourses = async (
   req: Request,
   res: Response,
@@ -228,8 +290,8 @@ export const getPopularCourses = async (
     const coursePopularity = await Order.aggregate([
       { $unwind: "$items" },
       { $group: { _id: "$items._id", count: { $sum: 1 } } },
-      { $sort: { count: -1 } }, 
-      { $limit: limit + 2 },// TRICK FIX LATER!
+      { $sort: { count: -1 } },
+      { $limit: limit + 2 }, // TRICK FIX LATER!
     ]);
 
     const popularCourseIds = coursePopularity.map((entry) => entry._id);
@@ -365,6 +427,10 @@ export const getCourseDetail = async (req: Request, res: Response, next: NextFun
   try {
     const result = await getCourseDetailInfo(courseId);
 
+    const foundCourse = await Course.findOne({
+      _id: courseId,
+    })
+
     let isBought = false;
 
     if (userId) {
@@ -449,10 +515,9 @@ export const getRelatedCourses = async (req: Request, res: Response, next: NextF
     }
     const ordersRes = await Order.find();
 
-
     const orderDetails = ordersRes.flatMap((order) => {
       return order.items.map((item: any) => ({
-        orderId: order._id, 
+        orderId: order._id,
         userId: order.user._id,
         userEmail: order.user.email,
         // ... other relevant order fields if needed
@@ -464,19 +529,21 @@ export const getRelatedCourses = async (req: Request, res: Response, next: NextF
       }));
     });
 
-      // create dict courses of user
-      orderDetails.forEach((item) => {
-        if (item.userId) {
-          if (dictCoursesOfUser[item.userId]) {
-            dictCoursesOfUser[item.userId].push(item)
-          } else {
-            dictCoursesOfUser[item.userId] = [item]
-          }
+    // create dict courses of user
+    orderDetails.forEach((item) => {
+      if (item.userId) {
+        if (dictCoursesOfUser[item.userId]) {
+          dictCoursesOfUser[item.userId].push(item);
+        } else {
+          dictCoursesOfUser[item.userId] = [item];
         }
-      })
+      }
+    });
 
     const coursesOfUser = dictCoursesOfUser[userId] || [];
-    const courseIdOfUserList = [...new Set<string>(coursesOfUser.map((course) => course.courseId.toString()))];
+    const courseIdOfUserList = [
+      ...new Set<string>(coursesOfUser.map((course) => course.courseId.toString())),
+    ];
 
     let result = relatedCourses.map((course) => {
       return {
@@ -502,18 +569,18 @@ export const getRelatedCourses = async (req: Request, res: Response, next: NextF
 export const getSuggestedCourses = async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.params.userId as string;
   let limit: number = req.query.limit ? parseInt(req.query.limit as string) : 5;
-  const dictCoursesOfUser: Record<string, any> = {}
-  const dictCourse: Record<string, any> = {}
+  const dictCoursesOfUser: Record<string, any> = {};
+  const dictCourse: Record<string, any> = {};
   try {
     const ordersRes = await Order.find();
     const courseRes = await Course.find();
     const orderDetails = ordersRes.flatMap((order) => {
       return order.items.map((item: any) => ({
-        orderId: order._id, 
+        orderId: order._id,
         userId: order.user._id,
         userEmail: order.user.email,
         // ... other relevant order fields if needed
-    
+
         courseId: item._id,
         courseName: item.name,
         courseThumbnail: item.thumbnail,
@@ -521,32 +588,34 @@ export const getSuggestedCourses = async (req: Request, res: Response, next: Nex
         reviewed: item.reviewed,
       }));
     });
-  // create dict courses of user
-  orderDetails.forEach((item) => {
-    if (item.userId) {
-      if (dictCoursesOfUser[item.userId]) {
-        dictCoursesOfUser[item.userId].push(item)
-      } else {
-        dictCoursesOfUser[item.userId] = [item]
+    // create dict courses of user
+    orderDetails.forEach((item) => {
+      if (item.userId) {
+        if (dictCoursesOfUser[item.userId]) {
+          dictCoursesOfUser[item.userId].push(item);
+        } else {
+          dictCoursesOfUser[item.userId] = [item];
+        }
       }
-    }
-  })
+    });
 
     // create dict course
     courseRes.forEach((item) => {
-        const currentKey = item._id.toString()
-        dictCourse[currentKey] = item
-    })
+      const currentKey = item._id.toString();
+      dictCourse[currentKey] = item;
+    });
 
     const listCourseOfCurrentUser = dictCoursesOfUser[userId] || [];
-    const boughtCourseId = [...new Set<string>(listCourseOfCurrentUser.map((course) => course.courseId.toString()))]
-    
-    const boughtCourses = []
+    const boughtCourseId = [
+      ...new Set<string>(listCourseOfCurrentUser.map((course) => course.courseId.toString())),
+    ];
+
+    const boughtCourses = [];
 
     boughtCourseId.forEach((courseId: string) => {
-        if(dictCourse[courseId]) {
-            boughtCourses.push(dictCourse[courseId])
-        }
+      if (dictCourse[courseId]) {
+        boughtCourses.push(dictCourse[courseId]);
+      }
     });
 
     if (!boughtCourses.length) {
@@ -558,7 +627,7 @@ export const getSuggestedCourses = async (req: Request, res: Response, next: Nex
 
     const boughtCourseCategories = boughtCourses.map((course) => {
       const currentCateId = course.categoryId.toString();
-        return currentCateId;
+      return currentCateId;
     });
 
     // Gợi ý những khó học cùng danh mục trong những khoá học đã mua và khác những khoá học đã mua!
@@ -614,8 +683,7 @@ export const getCoursesFromWishlistByUserId = async (
   res: Response,
   next: NextFunction
 ) => {
-
-  const dictCoursesOfUser: Record<string, any> = {}
+  const dictCoursesOfUser: Record<string, any> = {};
 
   try {
     const { userId } = req.params;
@@ -624,11 +692,11 @@ export const getCoursesFromWishlistByUserId = async (
     const courseRes = await Course.find();
     const orderDetails = ordersRes.flatMap((order) => {
       return order.items.map((item: any) => ({
-        orderId: order._id, 
+        orderId: order._id,
         userId: order.user._id,
         userEmail: order.user.email,
         // ... other relevant order fields if needed
-    
+
         courseId: item._id,
         courseName: item.name,
         courseThumbnail: item.thumbnail,
@@ -636,16 +704,16 @@ export const getCoursesFromWishlistByUserId = async (
         reviewed: item.reviewed,
       }));
     });
-  // create dict courses of user
-  orderDetails.forEach((item) => {
-    if (item.userId) {
-      if (dictCoursesOfUser[item.userId]) {
-        dictCoursesOfUser[item.userId].push(item)
-      } else {
-        dictCoursesOfUser[item.userId] = [item]
+    // create dict courses of user
+    orderDetails.forEach((item) => {
+      if (item.userId) {
+        if (dictCoursesOfUser[item.userId]) {
+          dictCoursesOfUser[item.userId].push(item);
+        } else {
+          dictCoursesOfUser[item.userId] = [item];
+        }
       }
-    }
-  })
+    });
 
     const wishlists = await Wishlist.find({ userId, isDeleted: false });
     const courseIdsFromWishlist = wishlists.map((wishlist) => wishlist.courseId);
@@ -657,7 +725,9 @@ export const getCoursesFromWishlistByUserId = async (
       .populate("userId", "_id name avatar");
 
     const coursesOfUser = dictCoursesOfUser[userId] ?? [];
-    const courseIdOfUserList = [...new Set(coursesOfUser.map((course) => course.courseId.toString()))];
+    const courseIdOfUserList = [
+      ...new Set(coursesOfUser.map((course) => course.courseId.toString())),
+    ];
 
     const result = courses.map((course) => {
       return {

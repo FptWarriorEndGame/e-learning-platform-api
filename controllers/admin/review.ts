@@ -23,6 +23,7 @@ import {
   UPDATE_ACTIVE_SUCCESS,
   UPDATE_SUCCESS,
 } from "../../config/constant";
+import Course from "../../models/Course";
 
 export const getReviews = async (req: AuthorAuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -48,13 +49,35 @@ export const getReviews = async (req: AuthorAuthRequest, res: Response, next: Ne
       .skip(skip)
       .limit(limit);
 
+    let reviewsWithReplies = await Promise.all(
+      reviews.map(async (review) => {
+        const replyCount = await ReviewReply.countDocuments({ reviewId: review._id });
+        const hasReplies = replyCount > 0;
+        return {
+          ...review.toObject(),
+          hasReplies,
+          replyCount,
+        };
+      })
+    );
+
+      if(req.userId && req.role === enumData.UserType.Author.code) {
+        const listCourseByCurrentAuthor = await Course.find({ createdBy: req.userId });
+        const listCourseIdByCurrentAuthor = listCourseByCurrentAuthor.map((item) => item._id.toString());
+
+        reviewsWithReplies.filter((item: any) => {
+          return listCourseIdByCurrentAuthor.includes(item.courseId._id.toString())
+        })
+      }
+
+
     res.status(200).json({
       message: GET_SUCCESS,
-      total,
+      total: reviewsWithReplies.length,
       page,
       pages: Math.ceil(total / limit),
       limit,
-      reviews,
+      reviews: reviewsWithReplies,
     });
   } catch (error) {
     if (error instanceof CustomError) {

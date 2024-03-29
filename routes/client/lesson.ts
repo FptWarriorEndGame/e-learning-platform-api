@@ -16,4 +16,6 @@ router.get("/getAllLesson", lessonController.getAllLessons);
 
 router.get("/course/:courseId/free-lessons", lessonController.getFreeLessonsByCourseId);
 
+router.get("/lesson/:lessonId/users", lessonController.getUsersByLessonId);
+
 export default router;

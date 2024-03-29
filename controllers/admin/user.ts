@@ -41,19 +41,25 @@ export const getUsers = async (req: AuthorAuthRequest, res: Response, next: Next
   const { _q } = req.query;
   const dictCoursesOfUser: Record<string, any> = {};
   const dictCourse: Record<string, any> = {};
+  const dictUsersOfAuthor: Record<string, any> = {};
+  const dictCoursesOfAuthor: Record<string, any> = {};
   try {
     const query: getUsersQuery = {};
     const orderQuery: any = {};
-    if (req.role && req.role === enumData.UserType.Author.code) {
-      query.createdBy = new mongoose.Types.ObjectId(req.userId) as any;
-    }
 
     if (_q && typeof _q === "string") {
       query.$text = { $search: _q };
     }
 
     const ordersRes = await Order.find(orderQuery);
-    const courseRes = await Course.find();
+    const courseRes = await Course.find().populate("createdBy");
+
+    // create dict course
+    courseRes.forEach((item) => {
+      const currentKey = item._id.toString();
+      dictCourse[currentKey] = item;
+    });
+
     const orderDetails = ordersRes.flatMap((order) => {
       return order.items.map((item: any) => ({
         orderId: order._id,
@@ -78,23 +84,50 @@ export const getUsers = async (req: AuthorAuthRequest, res: Response, next: Next
           dictCoursesOfUser[item.userId] = [item];
         }
       }
+
+      const currentAuthorId = dictCourse[item.courseId.toString()]?.createdBy?._id?.toString();
+
+      if (currentAuthorId) {
+        if (dictUsersOfAuthor[currentAuthorId]) {
+          dictUsersOfAuthor[currentAuthorId].push(item.userId.toString());
+        } else {
+          dictUsersOfAuthor[currentAuthorId] = [item.userId.toString()];
+        }
+
+        if (dictCoursesOfAuthor[currentAuthorId]) {
+          dictCoursesOfAuthor[currentAuthorId].push(item.courseId.toString());
+        } else {
+          dictCoursesOfAuthor[currentAuthorId] = [item.courseId.toString()];
+        }
+      }
+      // create dict for author
     });
 
-    // create dict course
-    courseRes.forEach((item) => {
-      const currentKey = item._id.toString();
-      dictCourse[currentKey] = item;
-    });
+    if (req.role && req.role === enumData.UserType.Author.code) {
+      // query.createdBy = new mongoose.Types.ObjectId(req.userId) as any;
+    }
 
     const users = await User.find(query).sort({ createdAt: -1 });
+    let resUser = users;
+    let listCourseIdOfCurrentAuthor = []
+    if (req.userId && enumData.UserType.Author.code) {
+      // Danh sách userId của tác giả
+      const listUserIdOfCurrentAuthor = dictUsersOfAuthor[req.userId];
+      resUser = users.filter((item) => listUserIdOfCurrentAuthor.includes(item._id.toString()));
+
+       listCourseIdOfCurrentAuthor = dictCoursesOfAuthor[req.userId]
+    }
 
     const result = [];
-    users.forEach((user) => {
+    resUser.forEach((user) => {
       const currentUserId = user._id.toString();
       const listCoursesRes = [];
-      const listCourse = dictCoursesOfUser[currentUserId];
+      let listCourse = dictCoursesOfUser[currentUserId];
+      if(listCourseIdOfCurrentAuthor.length > 0) {
+        listCourse = listCourse.filter((item) => listCourseIdOfCurrentAuthor.includes(item.courseId.toString()))
+      }
       // Trường hợp đã có order
-      if (listCourse) {
+      if (listCourse && listCourse.length > 0) {
         const listCourseId = listCourse.map((item) => item.courseId.toString());
         const listCourseIdDistinct = [...new Set<string>(listCourseId)];
         listCourseIdDistinct.forEach((courseId) => {
@@ -121,7 +154,7 @@ export const getUsers = async (req: AuthorAuthRequest, res: Response, next: Next
           status: user.status,
         };
         result.push(item);
-      }else {
+      } else {
         // Trường hợp chưa có order (khoá học mới!)
         const item = {
           _id: user._id,
@@ -160,10 +193,9 @@ export const getUsers = async (req: AuthorAuthRequest, res: Response, next: Next
 };
 
 export const getUsersSelectBox = async (req: Request, res: Response, next: NextFunction) => {
-
-  const userQuery: any = {}
-  if(req.query.role) {
-    userQuery.role = req.query.role
+  const userQuery: any = {};
+  if (req.query.role) {
+    userQuery.role = req.query.role;
   }
 
   try {
@@ -248,7 +280,7 @@ export const postUser = async (req: AuthorAuthRequest, res: Response, next: Next
       password: hashedPassword,
       createdBy: req.userId,
       status: status ? status : enumData.UserStatus.NEW.code,
-      username: username
+      username: username,
     });
 
     const result = await newUser.save();

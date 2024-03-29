@@ -8,6 +8,7 @@ import { removeVietnameseAccents } from "../../utils/helper";
 import Certificate from "../../models/Certificate";
 import CustomError from "../../utils/error";
 import CustomErrorMessage from "../../utils/errorMessage";
+import moment from "moment";
 
 const generateCertificate = (
   userName: string,
@@ -15,22 +16,22 @@ const generateCertificate = (
   completionDate: string,
   res: Response
 ): string => {
+ try {
   const transformedCourseName = courseName.trim().split(" ").join("-");
-  const certificateTemplatePath = path.join("images", "certificate-template.png");
+  const certificateTemplatePath = path.join("assets/certificates", "certificate-template.png");
   const certificationName = `${userName}-${transformedCourseName}-certificate.pdf`;
-  const outputCertification = path.join("images", certificationName);
+  const outputCertification = path.join("assets/certificates", certificationName);
 
-  const doc = new PDFDocument({ layout: "landscape" });
-
+  const doc = new PDFDocument({ layout: "portrait", margins: { top: 0, bottom: 0, left: 0, right: 0 }, size: [595.28,841.89] });
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `inline; filename="${certificationName}"`);
 
   const writeStream = fs.createWriteStream(outputCertification);
   doc.pipe(writeStream);
 
-  doc.image(certificateTemplatePath, 0, 0, { width: 792, height: 700 });
+  doc.image(certificateTemplatePath, 0, 0, {fit: [595.28,841.89]}); // A4 size!
 
-  doc.fontSize(36).fillColor("#007BFF").text(userName, 100, 260, {
+  doc.fontSize(36).fillColor("#007BFF").text(userName, 0, 340, {
     align: "center",
   });
 
@@ -47,6 +48,9 @@ const generateCertificate = (
   doc.end();
 
   return certificationName;
+ } catch (error) {
+    throw error;
+ }
 };
 
 export const postCertificate = async (req: Request, res: Response, next: NextFunction) => {
@@ -69,7 +73,7 @@ export const postCertificate = async (req: Request, res: Response, next: NextFun
 
     const convertedName = removeVietnameseAccents(user.name);
 
-    const certificateName = generateCertificate(convertedName, course.name, completionDate, res);
+    const certificateName = generateCertificate(convertedName, course.name, moment(completionDate).format("DD-MM-YYYY"), res);
 
     const newCertificate = new Certificate({
       certificateName: certificateName,
@@ -86,6 +90,54 @@ export const postCertificate = async (req: Request, res: Response, next: NextFun
     res.status(201).json({
       message: "Post certificate successfully!",
       certificate: createdCertificate,
+    });
+  } catch (error) {
+    if (error instanceof CustomError) {
+      return next(error);
+    } else {
+      const customError = new CustomErrorMessage("Failed to create certificates for user!", 422);
+      return next(customError);
+    }
+  }
+};
+
+export const testGenCertificate = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+
+    const certificateTemplatePath = path.join("assets/certificates", "certificate-template.png");
+    const certificationName = `test-pdf-certificate.pdf`;
+    const outputCertification = path.join("assets/certificates", certificationName);
+  
+    const doc = new PDFDocument({ layout: "portrait", margins: { top: 0, bottom: 0, left: 0, right: 0 }, size: [595.28,841.89] });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${certificationName}"`);
+  
+    const writeStream = fs.createWriteStream(outputCertification);
+    doc.pipe(writeStream);
+  
+    doc.image(certificateTemplatePath, 0, 0, {fit: [595.28,841.89]}); // A4 size!
+  
+    doc.fontSize(36).fillColor("#007BFF").text("Tran Nhat Sang", 0, 340, {
+      align: "center",
+      lineGap: 6
+    });
+    doc.fontSize(24).fillColor("#333").text(`Course: ${"React Native"}`, {
+      align: "center",
+      lineGap: 6
+    });
+    doc.fontSize(16).fillColor("#555").text("This certificate is awarded to", {
+      align: "center",
+      lineGap: 6
+    });
+    doc.fontSize(16).fillColor("#555").text("12-01-2022", {
+      align: "center",
+      lineGap: 6
+    });
+  
+    doc.end();
+  
+    res.status(201).json({
+      message: "Post certificate successfully!",
     });
   } catch (error) {
     if (error instanceof CustomError) {

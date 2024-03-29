@@ -4,7 +4,7 @@ import * as discussCourseController from "../../controllers/client/courseDiscuss
 const router = express.Router();
 
 // Route to get all discussions
-router.get("/getAll", discussCourseController.getAllDiscurdCourse);
+router.get("/getAll", discussCourseController.getAllDiscussCourse);
 
 // Route to get discussions by lessonId
 router.get("/lesson/:lessonId", discussCourseController.getDiscussByLessonId);

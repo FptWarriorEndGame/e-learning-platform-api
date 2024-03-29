@@ -31,13 +31,10 @@ app.use(cors());
 const port = process.env.PORT || 9000;
 
 app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, "public")));
+// app.use(express.static(path.join(__dirname, "public")));
 
 // Define storage for uploaded files and public the path folder for users
-app.use("images", express.static(path.join(__dirname, "assets/images")));
-app.use("videos", express.static(path.join(__dirname, "assets/videos")));
-app.use("pdfs", express.static(path.join(__dirname, "assets/pdfs")));
-app.use("certificates", express.static(path.join(__dirname, "assets/certificates")));
+app.use(express.static(path.join(__dirname, "assets")));
 
 app.use((req: Request, res: Response, next: NextFunction) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -49,7 +46,6 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
   next();
 });
-
 app.use("/auth", authRouter);
 app.use("/admin", adminRouter);
 app.use(clientRouter);

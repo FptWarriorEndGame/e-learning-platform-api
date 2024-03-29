@@ -19,6 +19,10 @@ router.post(
   courseController.postCourse
 );
 
+router.put("/course/update", isAuth, courseController.updateCourse);
+
+router.get("/course/histories/:courseId", isAuth, courseController.loadHistoriesForCourse);
+
 router.patch("/course/update-active-status", isAuth, courseController.updateActiveStatusCourse);
 
 export default router;
