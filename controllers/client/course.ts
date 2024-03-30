@@ -571,9 +571,13 @@ export const getSuggestedCourses = async (req: Request, res: Response, next: Nex
   let limit: number = req.query.limit ? parseInt(req.query.limit as string) : 5;
   const dictCoursesOfUser: Record<string, any> = {};
   const dictCourse: Record<string, any> = {};
+  const dictReviewsOfCourse: Record<string, any> = {};
+  const dictUsersOfCourse: Record<string, any> = {};
+
   try {
     const ordersRes = await Order.find();
     const courseRes = await Course.find();
+    const reviewsRes = await Review.find();
     const orderDetails = ordersRes.flatMap((order) => {
       return order.items.map((item: any) => ({
         orderId: order._id,
@@ -597,6 +601,14 @@ export const getSuggestedCourses = async (req: Request, res: Response, next: Nex
           dictCoursesOfUser[item.userId] = [item];
         }
       }
+
+      if (item.courseId) {
+        if (dictUsersOfCourse[item.courseId]) {
+          dictUsersOfCourse[item.courseId].push(item);
+        } else {
+          dictUsersOfCourse[item.courseId] = [item];
+        }
+      }
     });
 
     // create dict course
@@ -604,6 +616,18 @@ export const getSuggestedCourses = async (req: Request, res: Response, next: Nex
       const currentKey = item._id.toString();
       dictCourse[currentKey] = item;
     });
+
+    reviewsRes.forEach((reviewItem) => {
+      if (reviewItem.courseId) {
+        const currentKey = reviewItem.courseId.toString();
+        if (dictReviewsOfCourse[currentKey]) {
+          dictReviewsOfCourse[currentKey].push(reviewItem);
+        } else {
+          dictReviewsOfCourse[currentKey] = [reviewItem];
+        }
+      }
+    });
+
 
     const listCourseOfCurrentUser = dictCoursesOfUser[userId] || [];
     const boughtCourseId = [
@@ -630,6 +654,20 @@ export const getSuggestedCourses = async (req: Request, res: Response, next: Nex
       return currentCateId;
     });
 
+    let courseIdOfUserList: string[] = [];
+    if (typeof userId === "string" && userId.trim() !== "") {
+      const listCourseOfUser = dictCoursesOfUser[userId] ?? [];
+      let listCourseIfOfUser = [];
+      if (listCourseIfOfUser.length > 0) {
+        listCourseIfOfUser = listCourseOfUser.map((course: any) => course.courseId.toString());
+      }
+      if (listCourseOfUser.length > 0) {
+        courseIdOfUserList = [...new Set<string>(listCourseIfOfUser)];
+      } else {
+        courseIdOfUserList = [];
+      }
+    }
+
     // Gợi ý những khó học cùng danh mục trong những khoá học đã mua và khác những khoá học đã mua!
     const suggestedCourses = await Course.find({
       categoryId: { $in: boughtCourseCategories },
@@ -639,9 +677,38 @@ export const getSuggestedCourses = async (req: Request, res: Response, next: Nex
       .populate("userId", "_id name avatar")
       .limit(limit);
 
+    
+
+    const suggestedCoursesRes = []
+    for (const course of suggestedCourses) {
+      const currentCourseId = course._id.toString();
+      const listReviewsOfCurrentCourse = dictReviewsOfCourse[currentCourseId] ?? [];
+      const listUsersOfCurrentCourse = dictUsersOfCourse[currentCourseId] ?? [];
+
+      let avgRatings = 0;
+      if (listReviewsOfCurrentCourse.length > 0) {
+        avgRatings =
+          listReviewsOfCurrentCourse.reduce(
+            (total, review) => total + (review?.ratingStar || 0),
+            0
+          ) / listReviewsOfCurrentCourse.length;
+      }
+
+      const courseItem = {
+        ...course.toObject(),
+        avgRatings: avgRatings,
+        numberUsersOfCourse: listUsersOfCurrentCourse.length,
+        isBought:
+          typeof userId === "string" && userId.trim() !== ""
+            ? courseIdOfUserList.includes(currentCourseId)
+            : false,
+      };
+      suggestedCoursesRes.push(courseItem)
+    }
+
     res.status(200).json({
       message: "List of suggested courses",
-      suggestedCourses,
+      suggestedCourses: suggestedCoursesRes,
     });
   } catch (error) {
     if (error instanceof CustomError) {

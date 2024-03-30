@@ -231,10 +231,9 @@ export const getCoursesOrderByUserId = async (userId: string) => {
 };
 
 export const getCourseDetailInfo = async (courseId: string): Promise<ICourseDetail> => {
-
-  const dictSectionOfCourse: Record<string, any> = {}
-  const dictLessonsOfCourse: Record<string, any> = {}
-  const dictLessonsOfSection: Record<string, any> = {}
+  const dictSectionOfCourse: Record<string, any> = {};
+  const dictLessonsOfCourse: Record<string, any> = {};
+  const dictLessonsOfSection: Record<string, any> = {};
 
   try {
     const course = (await Course.findById(courseId)
@@ -245,28 +244,28 @@ export const getCourseDetailInfo = async (courseId: string): Promise<ICourseDeta
     const lessonsRes = await Lesson.find();
 
     lessonsRes.forEach((item) => {
-      const currentKey = item.sectionId.toString()
-      if(dictLessonsOfSection[currentKey]) {
-        dictLessonsOfSection[currentKey].push(item)
+      const currentKey = item.sectionId.toString();
+      if (dictLessonsOfSection[currentKey]) {
+        dictLessonsOfSection[currentKey].push(item);
       } else {
-        dictLessonsOfSection[currentKey] = [item]
+        dictLessonsOfSection[currentKey] = [item];
       }
-    })
+    });
 
     sectionsOfCurrentCourseRes.forEach((item) => {
-      const currentCourseKey = item.courseId.toString()
-      const currentSectionId = item._id.toString()
-      const listLessonOfCurrentSection = dictLessonsOfSection[currentSectionId] ?? []
+      const currentCourseKey = item.courseId.toString();
+      const currentSectionId = item._id.toString();
+      const listLessonOfCurrentSection = dictLessonsOfSection[currentSectionId] ?? [];
       listLessonOfCurrentSection.forEach((item) => {
-        if(dictLessonsOfCourse[currentCourseKey]) {
-          dictLessonsOfCourse[currentCourseKey].push(item)
+        if (dictLessonsOfCourse[currentCourseKey]) {
+          dictLessonsOfCourse[currentCourseKey].push(item);
         } else {
-          dictLessonsOfCourse[currentCourseKey] = [item]
+          dictLessonsOfCourse[currentCourseKey] = [item];
         }
-      })
-    })
+      });
+    });
 
-    const lessonsOfCourse = dictLessonsOfCourse[course._id.toString()] as ILesson[] ?? [];
+    const lessonsOfCourse = (dictLessonsOfCourse[course._id.toString()] as ILesson[]) ?? [];
 
     const orders = (await Order.find({ "items._id": courseId })) as IOrder[];
     const numOfStudents = orders.length;
@@ -289,6 +288,7 @@ export const getCourseDetailInfo = async (courseId: string): Promise<ICourseDeta
       thumbnail: course.thumbnail,
       access: course.access,
       views: course.views,
+      willLearns: course.willLearns,
       description: course.description,
       // Trường hợp khoá học không nằm trong danh mục nào dễ bị lỗi!
       categoryId: {

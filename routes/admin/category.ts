@@ -8,9 +8,9 @@ const router = Router();
 
 router.get("/", isAuth, categoryController.getCategories);
 
-router.get("/get-all", isAuth,categoryController.getAllCategories);
+router.get("/get-all", isAuth, categoryController.getAllCategories);
 
-router.get("/category/:categoryId",isAuth, categoryController.getCategory);
+router.get("/category/:categoryId", isAuth, categoryController.getCategory);
 
 router.post(
   "/category/create",
@@ -26,6 +26,12 @@ router.put(
   isAdmin,
   uploadMiddleware.single("cateImage"),
   categoryController.updateCategories
+);
+
+router.patch(
+  "/category/update-active-status",
+  isAuth,
+  categoryController.updateActiveStatusCategory
 );
 
 router.delete("/category/delete/:categoryId", isAuth, isAdmin, categoryController.deleteCategory);

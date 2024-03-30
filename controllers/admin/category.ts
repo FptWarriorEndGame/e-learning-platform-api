@@ -9,6 +9,21 @@ import { AuthorAuthRequest } from "../../middleware/is-auth";
 import mongoose, { ClientSession } from "mongoose";
 import { enumData } from "../../config/enumData";
 import ActionLog from "../../models/ActionLog";
+import {
+  CREATE_SUCCESS,
+  ERROR_CREATE_DATA,
+  ERROR_GET_DATA,
+  ERROR_GET_DATA_DETAIL,
+  ERROR_GET_DATA_HISTORIES,
+  ERROR_NOT_FOUND_DATA,
+  ERROR_UPDATE_ACTIVE_DATA,
+  ERROR_UPDATE_DATA,
+  GET_DETAIL_SUCCESS,
+  GET_HISOTIES_SUCCESS,
+  GET_SUCCESS,
+  UPDATE_ACTIVE_SUCCESS,
+  UPDATE_SUCCESS,
+} from "../../config/constant";
 
 interface GetCategoriesQuery {
   $text?: { $search: string };
@@ -50,6 +65,7 @@ export const getCategories = async (req: AuthorAuthRequest, res: Response, next:
           cateSlug: cate.cateSlug,
           description: cate.description,
           courses,
+          isDeleted: cate.isDeleted,
           createdAt: cate.createdAt,
           updatedAt: cate.updatedAt,
         };
@@ -222,6 +238,76 @@ export const deleteCategory = async (req: Request, res: Response, next: NextFunc
       return next(error);
     } else {
       const customError = new CustomErrorMessage("Failed to update category!", 422);
+      return next(customError);
+    }
+  }
+};
+
+export const updateActiveStatusCategory = async (
+  req: AuthorAuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  const { categoryId } = req.body;
+
+  let session: ClientSession | null = null;
+  session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const foundCategory = await Category.findById(categoryId);
+
+    if (!foundCategory) {
+      const error = new CustomError("Category", ERROR_NOT_FOUND_DATA, 404);
+      throw error;
+    }
+
+    foundCategory.isDeleted = !foundCategory.isDeleted;
+    foundCategory.updatedAt = new Date();
+    foundCategory.updatedBy = new mongoose.Types.ObjectId(req.userId) as any;
+
+    const categoryRes = await foundCategory.save();
+
+    const type =
+      foundCategory.isDeleted === false
+        ? `${enumData.ActionLogEnType.Activate.code}`
+        : `${enumData.ActionLogEnType.Deactivate.code}`;
+    const typeName =
+      foundCategory.isDeleted === false
+        ? `${enumData.ActionLogEnType.Activate.name}`
+        : `${enumData.ActionLogEnType.Deactivate.name}`;
+    const createdBy = new mongoose.Types.ObjectId(req.userId) as any;
+    const historyDesc = `User [${req.username}] has [${typeName}] Category`;
+    const functionType = "CATEGORY";
+
+    const historyItem = new ActionLog({
+      categoryId: categoryRes._id,
+      type,
+      createdBy,
+      functionType,
+      description: historyDesc,
+    });
+
+    await ActionLog.collection.insertOne(historyItem.toObject(), {
+      session: session,
+    });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.json({
+      message: UPDATE_ACTIVE_SUCCESS,
+    });
+  } catch (error) {
+    if (session) {
+      await session.abortTransaction();
+      session.endSession();
+    }
+
+    if (error instanceof CustomError) {
+      return next(error);
+    } else {
+      const customError = new CustomErrorMessage(ERROR_UPDATE_ACTIVE_DATA, 422);
       return next(customError);
     }
   }

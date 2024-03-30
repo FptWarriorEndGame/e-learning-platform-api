@@ -44,14 +44,14 @@ export const getBlogPrams = async (req: AuthorAuthRequest, res: Response, next: 
     if (currentUserRole && currentUserRole === enumData.UserType.Author.code) {
       query.createdBy = new mongoose.Types.ObjectId(req.userId) as any;
     }
-    const total = await Blog.countDocuments(query);
     const blogs = await Blog.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit);
-
+    const total = await Blog.countDocuments(query);
+    const pages = Math.ceil(total / limit);
     res.status(200).json({
-      message: GET_SUCCESS,
+      message: "Get all blogs successfully",
       total,
       page,
-      pages: Math.ceil(total / limit),
+      pages,
       limit,
       blogs,
     });
